@@ -2,86 +2,120 @@
 # Email :- shiven.career@proton.me
 
 import os
-import shutil
-from huggingface_hub import HfApi, snapshot_download, hf_hub_download
+from huggingface_hub import hf_hub_download, snapshot_download, HfFileSystem
 
-def create_directory(path):
-    """Create directory if it doesn't exist"""
-    os.makedirs(path, exist_ok=True)
-    print(f"Created directory: {path}")
+def create_directories():
+    """Create required directory structure with verification"""
+    dirs = [
+        "models/checkpoints",
+        "models/vae",
+        "models/text_encoders"
+    ]
+    for d in dirs:
+        try:
+            os.makedirs(d, exist_ok=True)
+            print(f"📁 Verified/Created directory: {d}")
+        except Exception as e:
+            print(f"❌ Failed to create directory {d}: {str(e)}")
+            raise
 
-def verify_file(file_path):
-    """Check if file is actual content or LFS pointer"""
-    with open(file_path, 'rb') as f:
-        header = f.read(100)
-        if b'version https://git-lfs.github.com' in header:
-            raise ValueError(f"LFS pointer detected in {file_path}!")
-    print(f"Verified: {os.path.basename(file_path)} is actual file ({os.path.getsize(file_path)/1e6:.1f}MB)")
+def verify_file(repo_id, filename):
+    """Verify file exists in repository before download"""
+    fs = HfFileSystem()
+    full_path = f"{repo_id}/{filename}"
+    try:
+        if fs.exists(full_path):
+            print(f"✅ Verified file exists: {filename}")
+            return True
+        print(f"❌ File not found: {filename}")
+        return False
+    except Exception as e:
+        print(f"🔴 Verification error: {str(e)}")
+        return False
+
+def download_model(repo_id, filename, local_dir, rename=None):
+    """Generic download function with path correction"""
+    try:
+        if not verify_file(repo_id, filename):
+            return False
+
+        # Fix: Prevent nested directory creation
+        adjusted_local_dir = os.path.dirname(os.path.join(local_dir, filename))
+        os.makedirs(adjusted_local_dir, exist_ok=True)
+
+        print(f"⬇️ Downloading {filename} from {repo_id}")
+        path = hf_hub_download(
+            repo_id=repo_id,
+            filename=filename,
+            local_dir=local_dir,  # Base directory without subfolder
+            etag_timeout=100,
+            repo_type="model",
+        )
+
+        if rename:
+            target_path = os.path.join(local_dir, rename)
+            os.rename(path, target_path)
+            print(f"🔀 Renamed to: {rename}")
+            path = target_path
+
+        print(f"✅ Successfully saved to: {path}")
+        return True
+    except Exception as e:
+        print(f"🔥 Download failed: {str(e)}")
+        return False
 
 def main():
-    api = HfApi()
+    print("\n🚀 Starting Model Download Process\n")
+    create_directories()
 
-    # Step 1: Download text encoder model
-    print("\nStep 1: Downloading text encoder model...")
-    text_encoder_repo = "unsloth/gemma-2-2b-it-bnb-4bit"
-    text_encoder_path = os.path.join("models", "text_encoders", "gemma-2-2b-it-bnb-4bit")
-    create_directory(text_encoder_path)
-    
-    snapshot_download(
-        repo_id=text_encoder_repo,
-        local_dir=text_encoder_path,
-        repo_type="model",
-        force_download=True,
+    # --- Step 1: Download Sana 600M Checkpoint ---
+    print("\n" + "="*40)
+    print("Step 1: Downloading Sana 600M Model")
+    print("="*40)
+    success_1 = download_model(
+        repo_id="Efficient-Large-Model/Sana_600M_512px",
+        filename="checkpoints/Sana_600M_512px_MultiLing.pth",
+        local_dir="models",  # Changed to base directory
+        rename="checkpoints/Sana_600M_512px_MultiLing.pth"  # Explicit path
     )
-    print(f"Downloaded text encoder model to: {text_encoder_path}")
 
-    # Step 2: Download checkpoint
-    print("\nStep 2: Downloading checkpoint...")
-    checkpoint_repo = "Efficient-Large-Model/Sana_600M_512px"
-    checkpoint_path = os.path.join("models", "checkpoints")
-    create_directory(checkpoint_path)
-    
-    files = api.list_repo_files(repo_id=checkpoint_repo, repo_type="model")
-    pth_file = next(
-        (f for f in files 
-         if f.startswith("checkpoints/") and f.endswith(".pth")),
-        None
+    # --- Step 2: Download VAE Model ---
+    print("\n" + "="*40)
+    print("Step 2: Downloading VAE Model")
+    print("="*40)
+    success_2 = download_model(
+        repo_id="mit-han-lab/dc-ae-f32c32-sana-1.0-diffusers",
+        filename="diffusion_pytorch_model.safetensors",
+        local_dir="models/vae",
+        rename="dc-ae-f32c32.safetensors"
     )
-    
-    if not pth_file:
-        raise FileNotFoundError("No .pth file found in checkpoints folder")
-    
-    downloaded_file = hf_hub_download(
-        repo_id=checkpoint_repo,
-        filename=pth_file,
-        force_download=True,
-    )
-    target_file = os.path.join(checkpoint_path, os.path.basename(pth_file))
-    shutil.move(downloaded_file, target_file)
-    verify_file(target_file)
 
-    # Step 3: Download VAE
-    print("\nStep 3: Downloading VAE model...")
-    vae_repo = "mit-han-lab/dc-ae-f32c32-sana-1.0-diffusers"
-    vae_path = os.path.join("models", "vae")
-    create_directory(vae_path)
-    
-    files = api.list_repo_files(repo_id=vae_repo, repo_type="model")
-    safetensors_file = next((f for f in files if f.endswith(".safetensors")), None)
-    
-    if not safetensors_file:
-        raise FileNotFoundError("No .safetensors file found in repository")
-    
-    downloaded_file = hf_hub_download(
-        repo_id=vae_repo,
-        filename=safetensors_file,
-        force_download=True,
-    )
-    target_file = os.path.join(vae_path, "dc-ae-f32c32-sana.safetensors")
-    shutil.move(downloaded_file, target_file)
-    verify_file(target_file)
+    # --- Step 3: Download Text Encoder ---
+    print("\n" + "="*40)
+    print("Step 3: Downloading Text Encoder")
+    print("="*40)
+    success_3 = False
+    try:
+        text_encoder_path = snapshot_download(
+            repo_id="unsloth/gemma-2-2b-it-bnb-4bit",
+            local_dir="models/text_encoders/gemma-2-2b-it-bnb-4bit",
+            repo_type="model",
+            resume_download=True,
+            etag_timeout=100
+        )
+        print(f"✅ Text encoder saved to: {text_encoder_path}")
+        success_3 = True
+    except Exception as e:
+        print(f"🔥 Text encoder download failed: {str(e)}")
 
-    print("\nAll downloads completed and verified successfully!")
+    # --- Final Report ---
+    print("\n" + "="*40)
+    print("Download Summary")
+    print("="*40)
+    print(f"1. Sana 600M Checkpoint: {'✅ SUCCESS' if success_1 else '❌ FAILED'}")
+    print(f"2. VAE Model:           {'✅ SUCCESS' if success_2 else '❌ FAILED'}")
+    print(f"3. Text Encoder:        {'✅ SUCCESS' if success_3 else '❌ FAILED'}")
+    print("\n" + "="*40)
 
 if __name__ == "__main__":
     main()
