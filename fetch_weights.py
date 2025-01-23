@@ -1,5 +1,6 @@
 # Author :- Shiven Saini
 # Email :- shiven.career@proton.me
+# Modified to fetch 1024px res model
 
 import os
 from huggingface_hub import hf_hub_download, snapshot_download, HfFileSystem
@@ -73,10 +74,10 @@ def main():
     print("Step 1: Downloading Sana 600M Model")
     print("="*40)
     success_1 = download_model(
-        repo_id="Efficient-Large-Model/Sana_600M_512px",
-        filename="checkpoints/Sana_600M_512px_MultiLing.pth",
+        repo_id="Efficient-Large-Model/Sana_600M_1024px",
+        filename="checkpoints/Sana_600M_1024px_MultiLing.pth",
         local_dir="models",  # Changed to base directory
-        rename="checkpoints/Sana_600M_512px_MultiLing.pth"  # Explicit path
+        rename="checkpoints/Sana_600M_1024px_MultiLing.pth"  # Explicit path
     )
 
     # --- Step 2: Download VAE Model ---
