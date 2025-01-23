@@ -27,7 +27,7 @@ git clone https://github.com/Shiven-saini/sana-comfyui.git
 git switch little
 
 # For large-variant 1024px, switch to branch 'large'
-git swtich large
+git switch large
 ```
 
 ### 1. Environment Setup
