@@ -1,4 +1,10 @@
-# Sana ComfyUI
+<div align="center">
+  <h1>Sana ComfyUI ⚡</h1>
+</div>
+
+<div align="center">
+  <img src="samples/combined.png" width="100%">
+</div>
 
 ## 🖥️ System Requirements
 
